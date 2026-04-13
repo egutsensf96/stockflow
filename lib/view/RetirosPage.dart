@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:stockflow/core/services/api_services.dart';
-import 'package:intl/intl.dart'; // Add to pubspec.yaml for date formatting
+import 'package:intl/intl.dart';
 
 class RetirosPage extends StatefulWidget {
   const RetirosPage({super.key});
@@ -11,22 +11,76 @@ class RetirosPage extends StatefulWidget {
 
 class _RetirosPageState extends State<RetirosPage> {
   final ApiService _apiService = ApiService();
-  late Future<List<dynamic>> _drawsFuture;
+  List<dynamic> _transactions = [];
+  bool _isLoading = true;
+  String _error = '';
 
   @override
   void initState() {
     super.initState();
-    _drawsFuture = _apiService.fetchDraws();
+    _loadTransactions();
   }
 
-  // Helper to format ISO date strings from Go
-  String formatDate(String? dateStr) {
-    if (dateStr == null) return '--';
+  Future<void> _loadTransactions() async {
+    setState(() {
+      _isLoading = true;
+      _error = '';
+    });
+
     try {
-      final DateTime date = DateTime.parse(dateStr);
-      return DateFormat('dd MMM, yyyy').format(date);
+      // ✅ Fetches StockTransaction records from /admin/tracker
+      final data = await _apiService.fetchStockTransactions();
+      setState(() {
+        _transactions = data;
+        _isLoading = false;
+      });
     } catch (e) {
+      setState(() {
+        _error = e.toString().replaceAll('Exception: ', '');
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _formatDate(String? dateStr) {
+    // 1. Handle null or empty input
+    if (dateStr == null || dateStr.isEmpty) return '--';
+
+    try {
+      final date = DateTime.parse(dateStr);
+      return DateFormat('dd MMM, HH:mm').format(date);
+    } catch (_) {
+      // 2. Catch block MUST have a body (not arrow syntax)
+      // 3. Return non-nullable String (dateStr is guaranteed non-null here)
       return dateStr;
+    }
+  }
+
+  // Map transaction type to UI labels & colors
+  ({String label, Color color, IconData icon}) _getTransactionMeta(
+    String type,
+  ) {
+    switch (type.toUpperCase()) {
+      case 'RECEIVE':
+      case 'INITIAL':
+        return (label: 'ENTRADA', color: Colors.green, icon: Icons.add_circle);
+      case 'PICK':
+      case 'DRAW':
+        return (label: 'SALIDA', color: Colors.red, icon: Icons.remove_circle);
+      case 'TRANSFER':
+        return (
+          label: 'TRASLADO',
+          color: Colors.orange,
+          icon: Icons.swap_horiz,
+        );
+      case 'ADJUST':
+        return (label: 'AJUSTE', color: Colors.blue, icon: Icons.edit);
+      default:
+        return (
+          label: type ?? 'DESCONOCIDO',
+          color: Colors.grey,
+          icon: Icons.info,
+        );
     }
   }
 
@@ -34,146 +88,321 @@ class _RetirosPageState extends State<RetirosPage> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // --- HEADER ---
+        // Header
         Container(
-          padding: const EdgeInsets.only(top: 60, bottom: 30),
-          width: double.infinity,
+          padding: const EdgeInsets.only(top: 60, bottom: 20),
           decoration: BoxDecoration(
             color: Colors.blue.shade900,
-            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(40)),
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(40),
+            ),
           ),
-          child: const Column(
+          child: Column(
             children: [
-              Text(
+              const Text(
                 'MOVIMIENTOS',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              SizedBox(height: 5),
+              const SizedBox(height: 8),
               Text(
-                'Historial de entradas y salidas',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
+                'Historial completo de inventario',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.85),
+                  fontSize: 13,
+                ),
               ),
             ],
           ),
         ),
 
-        // --- DYNAMIC LIST ---
+        // Content
         Expanded(
-          child: FutureBuilder<List<dynamic>>(
-            future: _drawsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              } else if (snapshot.hasError) {
-                return Center(child: Text("Error: ${snapshot.error}"));
-              } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return const Center(child: Text("No hay movimientos registrados"));
-              }
-
-              final draws = snapshot.data!;
-
-              return RefreshIndicator(
-                onRefresh: () async {
-                  setState(() {
-                    _drawsFuture = _apiService.fetchDraws();
-                  });
-                },
-                child: ListView.separated(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: draws.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1, color: Colors.black12),
-                  itemBuilder: (context, index) {
-                    final item = draws[index];
-
-                    // 1. Get Product Name
-                    final String productName = item['product']?['name'] ?? 'Producto';
-
-                    // 2. Get User and Role (Nested JSON)
-                    final String userName = item['retrieved_by']?['name'] ?? 'Admin';
-                    final String userRole = item['retrieved_by']?['role']?['name'] ?? 'Encargado';
-
-                    // 3. Movement Logic (Status-based)
-                    // Logic: 'completed' means the product left the warehouse (OUT)
-                    final bool isOut = item['status'] == 'completed';
-
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0),
-                      child: ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: isOut ? Colors.red.shade50 : Colors.green.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            isOut ? Icons.arrow_outward : Icons.south_west, // Outward for OUT, SouthWest for IN
-                            color: isOut ? Colors.red : Colors.green,
-                            size: 20,
-                          ),
-                        ),
-                        title: Text(
-                          productName,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              formatDate(item['created_at']), // Note: lowercase from Go JSON
-                              style: const TextStyle(fontSize: 11, color: Colors.grey),
-                            ),
-                            const SizedBox(height: 4),
-                            // SHOWING NAME AND ROLE
-                            Row(
-                              children: [
-                                const Icon(Icons.account_circle, size: 14, color: Colors.blueGrey),
-                                const SizedBox(width: 4),
-                                Text(
-                                  "$userName ",
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-                                ),
-                                Text(
-                                  "($userRole)",
-                                  style: const TextStyle(fontSize: 11, color: Colors.black54),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            // If you don't have a 'quantity' field in Draw model,
-                            // we show "1" as a single movement count
-                            Text(
-                              '${isOut ? "-" : "+"}${item['quantity'] ?? 1}',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: isOut ? Colors.red : Colors.green,
-                              ),
-                            ),
-                            Text(
-                              isOut ? 'SALIDA' : 'ENTRADA',
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                  color: isOut ? Colors.red : Colors.green
-                              ),
-                            ),
-                          ],
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _error.isNotEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        color: Colors.red.shade400,
+                        size: 48,
+                      ),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Text(
+                          '$_error',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey.shade700),
                         ),
                       ),
-                    );
-                  },
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: _loadTransactions,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Reintentar'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade900,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : _transactions.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.history,
+                        size: 60,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No hay movimientos registrados',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadTransactions,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _transactions.length,
+                    separatorBuilder: (_, __) =>
+                        const Divider(height: 1, color: Colors.black12),
+                    itemBuilder: (context, index) {
+                      final txn = _transactions[index];
+                      final product = txn['product'] ?? {};
+                      final warehouse = txn['warehouse'] ?? {};
+                      final user = txn['user'] ?? {};
+                      final supplier = txn['supplier']; // Optional
+
+                      final meta = _getTransactionMeta(txn['type']);
+                      final change = txn['quantity_change'] ?? 0;
+                      final isPositive = change >= 0;
+
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          leading: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: meta.color.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(meta.icon, color: meta.color, size: 22),
+                          ),
+                          title: Text(
+                            product['name'] ?? 'Producto',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '📦 ${warehouse['name'] ?? 'Almacén'}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              if (supplier != null && supplier['name'] != null)
+                                Text(
+                                  '🏭 ${supplier['name']}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.person_outline,
+                                    size: 14,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${user['email'] ?? 'Sistema'} • ${_formatDate(txn['created_at'])}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '${isPositive ? '+' : ''}$change',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: meta.color,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: meta.color.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  meta.label,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: meta.color,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          onTap: () => _showTransactionDetails(context, txn),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              );
-            },
-          ),
         ),
       ],
     );
   }
+
+  void _showTransactionDetails(BuildContext context, dynamic txn) {
+    final product = txn['product'] ?? {};
+    final warehouse = txn['warehouse'] ?? {};
+    final user = txn['user'] ?? {};
+    final supplier = txn['supplier'];
+    final meta = _getTransactionMeta(txn['type']);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Detalles del Movimiento',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const Divider(height: 32),
+
+            // Details Grid
+            _detailRow('Producto', product['name'] ?? 'N/A'),
+            _detailRow('SKU', product['sku'] ?? 'N/A'),
+            _detailRow('Almacén', warehouse['name'] ?? 'N/A'),
+            _detailRow(
+              'Cantidad',
+              '${txn['quantity_change']}',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: meta.color,
+                fontSize: 16,
+              ),
+            ),
+            _detailRow('Tipo', meta.label),
+            if (supplier != null && supplier['name'] != null)
+              _detailRow('Proveedor', supplier['name']),
+            _detailRow('Usuario', user['email'] ?? 'Sistema'),
+            if (txn['notes']?.isNotEmpty == true)
+              _detailRow('Notas', txn['notes']),
+            _detailRow('Fecha', _formatDate(txn['created_at'])),
+
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade900,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Cerrar', style: TextStyle(fontSize: 16)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value, {TextStyle? style}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 110,
+          child: Text(
+            '$label:',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: style ?? const TextStyle(fontWeight: FontWeight.w500),
+          ),
+        ),
+      ],
+    ),
+  );
 }
