@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:stockflow/core/services/api_services.dart';
 import 'package:intl/intl.dart';
+import 'package:stockflow/core/services/api_services.dart';
 
 class RetirosPage extends StatefulWidget {
   const RetirosPage({super.key});
@@ -76,11 +76,7 @@ class _RetirosPageState extends State<RetirosPage> {
       case 'ADJUST':
         return (label: 'AJUSTE', color: Colors.blue, icon: Icons.edit);
       default:
-        return (
-          label: type ?? 'DESCONOCIDO',
-          color: Colors.grey,
-          icon: Icons.info,
-        );
+        return (label: type, color: Colors.grey, icon: Icons.info);
     }
   }
 
@@ -137,7 +133,7 @@ class _RetirosPageState extends State<RetirosPage> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 32),
                         child: Text(
-                          '$_error',
+                          _error,
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.grey.shade700),
                         ),
@@ -181,7 +177,7 @@ class _RetirosPageState extends State<RetirosPage> {
                   child: ListView.separated(
                     padding: const EdgeInsets.all(16),
                     itemCount: _transactions.length,
-                    separatorBuilder: (_, __) =>
+                    separatorBuilder: (_, _) =>
                         const Divider(height: 1, color: Colors.black12),
                     itemBuilder: (context, index) {
                       final txn = _transactions[index];

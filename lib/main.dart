@@ -1,15 +1,15 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'dart:io';
-import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
-
+import 'package:stockflow/core/providers/bloc/inventory_bloc.dart';
 // Internal Imports
 import 'package:stockflow/core/services/api_services.dart';
-import 'package:stockflow/view/ProfilePage.dart';
-import 'package:stockflow/view/RetirosPage.dart';
-import 'package:stockflow/view/SplashScreen.dart';
-import 'package:stockflow/core/providers/bloc/inventory_bloc.dart';
+import 'package:stockflow/view/profile_page.dart';
+import 'package:stockflow/view/retiros_page.dart';
+import 'package:stockflow/view/splash_screen.dart';
 
 void main() {
   runApp(
@@ -672,7 +672,7 @@ class _AddItemPageState extends State<AddItemPage> {
     List<dynamic> items,
     Function(String?) onChanged,
   ) => DropdownButtonFormField<String>(
-    value: value,
+    initialValue: value,
     decoration: InputDecoration(
       labelText: label,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),

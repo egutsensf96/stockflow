@@ -1,6 +1,6 @@
 // lib/core/providers/bloc/inventory_bloc.dart
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:stockflow/core/services/api_services.dart';
 
 // ==================== EVENTS ====================
