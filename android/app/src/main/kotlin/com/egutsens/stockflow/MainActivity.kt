@@ -1,4 +1,4 @@
-package com.example.stockflow
+package com.egutsens.stockflow
 
 import io.flutter.embedding.android.FlutterActivity
 

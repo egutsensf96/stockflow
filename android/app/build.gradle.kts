@@ -6,9 +6,9 @@ plugins {
 }
 
 android {
-    namespace = "com.example.stockflow"
+    namespace = "com.egutsens.stockflow"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.3.13750724"
+    ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
