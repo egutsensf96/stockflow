@@ -3,13 +3,14 @@ import 'package:google_fonts/google_fonts.dart';
 
 class AppConfig {
   // 🔌 ENDPOINTS (Multi-tenant ready)
-  static const String baseUrl = 'http://192.168.1.101:8080/api/v1';
+  static const String baseUrl = 'http://192.168.1.100:8080/api/v1';
   static String get endpointLogin => '$baseUrl/auth/login';
   static String get endpointInventory => '$baseUrl/inventory/products';
   static String get endpointCategories => '$baseUrl/inventory/categories';
   static String get endpointSuppliers => '$baseUrl/suppliers';
   static String get endpointWarehouses => '$baseUrl/admin/warehouses';
   static String get endpointTransactions => '$baseUrl/admin/tracker';
+  static String get endpointRoles => '$baseUrl/admin/roles';
 
   // 🎨 TEMA NEO-BRUTALISTA / GLASS
   static const Color _bg = Color(0xFF0A0E17);

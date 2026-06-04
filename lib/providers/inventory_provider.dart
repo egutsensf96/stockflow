@@ -3,12 +3,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 
 class InventoryNotifier extends AsyncNotifier<List<Map<String, dynamic>>> {
+  String? _activeWarehouseId;
+
+  // ✅ AGREGAR ESTO: Permite leer el filtro actual desde la UI
+  String? get activeWarehouseId => _activeWarehouseId;
+
   @override
-  Future<List<Map<String, dynamic>>> build() => ApiService.getInventory();
+  Future<List<Map<String, dynamic>>> build() async {
+    return ApiService.getInventory(warehouseId: _activeWarehouseId);
+  }
 
   Future<void> refresh() async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(ApiService.getInventory);
+    // ✅ Recarga respetando el filtro activo
+    state = await AsyncValue.guard(
+      () => ApiService.getInventory(warehouseId: _activeWarehouseId),
+    );
+  }
+
+  // ✅ NUEVO: Método para filtrar por almacén
+  Future<void> filterByWarehouse(String? warehouseId) async {
+    _activeWarehouseId = warehouseId;
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(
+      () => ApiService.getInventory(warehouseId: _activeWarehouseId),
+    );
   }
 
   Future<void> addProduct({
@@ -17,7 +36,7 @@ class InventoryNotifier extends AsyncNotifier<List<Map<String, dynamic>>> {
     required int quantity,
     required String categoryId,
     required String warehouseId,
-    String? supplierId, // ✅ AÑADIDO
+    String? supplierId,
     String? imageBase64,
   }) async {
     state = const AsyncValue.loading();
@@ -31,11 +50,11 @@ class InventoryNotifier extends AsyncNotifier<List<Map<String, dynamic>>> {
         supplierId: supplierId,
         imageBase64: imageBase64,
       );
-      return ApiService.getInventory();
+      // ✅ Refresca respetando el filtro activo
+      return ApiService.getInventory(warehouseId: _activeWarehouseId);
     });
   }
 
-  // ✅ ACTUALIZAR PRODUCTO
   Future<void> updateProduct({
     required String id,
     String? name,
@@ -54,7 +73,8 @@ class InventoryNotifier extends AsyncNotifier<List<Map<String, dynamic>>> {
         categoryId: categoryId,
         imageBase64: imageBase64,
       );
-      return ApiService.getInventory(); // Refresca lista tras éxito
+      // ✅ Refresca respetando el filtro activo
+      return ApiService.getInventory(warehouseId: _activeWarehouseId);
     });
   }
 }

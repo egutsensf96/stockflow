@@ -202,7 +202,7 @@ class _EditProductSheetState extends ConsumerState<EditProductSheet> {
                     .when(
                       data: (cats) => _GlassDropdown(
                         value: _categoryId,
-                        items: (cats ?? [])
+                        items: (cats)
                             .map(
                               (c) => DropdownMenuItem<String>(
                                 value: c['id'] as String,
